@@ -67,7 +67,7 @@ void wyslijPytanieOZgodePoLicencje() {
 				printf("Wysylam: rank=%d, zegar=%d, cos=%d\n", wiadomosc[0],wiadomosc[1],wiadomosc[2]);
 			}
 			break;
-		case 3: //wysylam wszystkim pytanie o transport
+		case 3: //wysylam wszystkim pytanie o transportt
 			for(int i=0; i<size; i++) {
 				if(i==rank) continue;
 				MPI_Send(wiadomosc,rozmiarWiadomosc, MPI_INT, i, status.MPI_SOURCE, MPI_COMM_WORLD);
