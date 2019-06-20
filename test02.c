@@ -43,7 +43,7 @@ void aktualizujZegar();
 void * funkcjaWatku() {
 	while(!end) {
 		MPI_Recv(&wiadomosc, rozmiarWiadomosci, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
-		printf("WATEK >> status:%d, Otrzymalem od procesu: %d, wiadomosc o zegarze[%d], coChce[%d], czyDalemZgode=%d\n",status.MPI_SOURCE,wiadomosc[0],wiadomosc[1],wiadomosc[2],wiadomosc[3]);
+		printf("WATEK >> status:%d,(ja:%d) Otrzymalem od procesu: %d, wiadomosc o zegarze[%d], coChce[%d], czyDalemZgode=%d\n",status.MPI_SOURCE,rank,wiadomosc[0],wiadomosc[1],wiadomosc[2],wiadomosc[3]);
 		zegarLamporta = max(zegarLamporta, wiadomosc[1]);
 		
 		if(wiadomosc[3]==1) {
@@ -58,6 +58,7 @@ void * funkcjaWatku() {
 		else {
 			int doKogo = -1;
 			if(wiadomosc[2]==1) { //byla prosba o licencje
+			printf("WATEK ---> Proces %d pyta mnie %d o licencje, CzyJaChcialemLicencje: %d\n",wiadomosc[0],rank,procesChceLicencje);
 				if(!procesChceLicencje) {
 					aktualizujZegar();
 
