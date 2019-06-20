@@ -12,7 +12,7 @@ int L = 50;
 int M = 50;
 int R = 50;
 int T = 50;
-int ileZajecyPozostalo = R;
+//int ileZajecyPozostalo = R;
 int zegarLamporta = 0;
 
 pthread_mutex_t mutexZegar = PTHREAD_MUTEX_INITIALIZER;
@@ -92,6 +92,15 @@ void wyslijZgodePoLicencje(bool chce) {
 	}
 }
 
+void *funkcjaWatku1(void * tab) {
+	int x[10] = tab;
+	while(!end) {
+		printf("Wyswietlam w innym watku (end=%d)!\n",end);
+	}
+	
+	return NULL;
+}
+
 int main(int argc, char **argv) {
 
 	int provided;
@@ -100,14 +109,29 @@ int main(int argc, char **argv) {
 	
 	int size, rank;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
 	L = size;
-	//if(rank==ROOT) check_thread_support(provided);
+	if(rank==ROOT) check_thread_support(provided);
 	
 	srand(time(0)+rank); //kazdy ma inny seed
 	int zegarLamporta = rand() % (size*size*size);
 	
+	//stworz watki
+	pthread_t watek1;
+	int errno = pthread_create(&watek1, NULL, funkcjaWatku1, (void*)&end); //zwraca 0 gdy sukces
+	
+	printf("wyswietlam w mainie\n");
+	if(errno) {
+		printf("Nie udalo sie utworzyc watku!!\n");
+	}
+
+	//polacz z powrotem watki
+	errno = pthread_join(watek1, NULL); //zwraca 0 gdy sukces
+	if(errno) {
+		printf("Nie udalo sie polaczyc watkow!!\n");
+	}
+
 	printf("U mnie (%d) jest godzina: %d\n",rank,zegarLamporta);
 
 	wiadomosc[0] = rank;
