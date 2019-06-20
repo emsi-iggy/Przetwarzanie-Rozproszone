@@ -42,6 +42,7 @@ void aktualizujZegar();
 
 void * funkcjaWatku() {
 	while(!end) {
+		wiadomosc[3]=0;
 		MPI_Recv(&wiadomosc, rozmiarWiadomosci, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 		printf("WATEK >> status:%d,(ja:%d) Otrzymalem od procesu: %d, wiadomosc o zegarze[%d], coChce[%d], czyDalemZgode=%d\n",status.MPI_SOURCE,rank,wiadomosc[0],wiadomosc[1],wiadomosc[2],wiadomosc[3]);
 		zegarLamporta = max(zegarLamporta, wiadomosc[1]);
@@ -155,7 +156,11 @@ int main(int argc, char **argv) {
 		}*/
     }
 	else {
-		for(int i=0; i<1000000000;i++) {} //sleep
+		printf("Ja: %d Nie chcialem licencji wiec ide sleep\n");
+		while(!end) {
+
+		}
+		//for(int i=0; i<1000000000;i++) {} //sleep
 	}
 
 
