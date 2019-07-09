@@ -7,10 +7,14 @@
 #include <unistd.h>
 #define ROOT 0
 #define max(a,b) ((a) > (b) ? (a) : (b))
+#define abs(x) ((x) < (0) ? (-x) : (x))
 
-#define Licencje 2
+#define Licencje 3
 #define Mysliwi 4 //liczba mysliwych = ilosc procesow
 #define Zajace 10
+#define TAGzajac 100
+#define TAGzwykly 101
+#define TAGzabity 102
 
 int end = 0;
 int size, rank;
@@ -27,10 +31,12 @@ pthread_mutex_t mutexZgodyZ = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexZgodyT = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexIleZajecyZostalo = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutexKtoJestWParku = PTHREAD_MUTEX_INITIALIZER;
 
-int ktoJestWParku[Licencje] = {0};
+int ktoJestWParku[Mysliwi] = {0};
+//int ktoJestWParku2[Mysliwi] = {0};
 int wiadomosc[10] = {0};
-int wiadomosc2[10] = {0};
+//int wiadomosc2[10] = {0};
 int rozmiarWiadomosci = sizeof(wiadomosc);
 
 /* **************
@@ -59,7 +65,7 @@ void * funkcjaWatku() {
     int wiadomosc2[10] = {0};
     while(!end) {
         wiadomosc2[3]=0;
-        MPI_Recv(&wiadomosc2, rozmiarWiadomosci, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
+        MPI_Recv(&wiadomosc2, rozmiarWiadomosci, MPI_INT, MPI_ANY_SOURCE, TAGzwykly, MPI_COMM_WORLD, &status);
         printf("WATEK >> Proces: %d otrzymal od: %d wiadomosc o zegarze: %d, coChce: %d, czyUdzielilemZgody: %d\n",rank,wiadomosc2[0],wiadomosc2[1],wiadomosc2[2],wiadomosc2[3]);
         //printf("WATEK >> status:%d,(ja:%d, mamZgod:%d) Otrzymalem od procesu: %d, wiadomosc o zegarze[%d], coChce[%d], czyDalemZgode=%d\n",status.MPI_SOURCE,rank,ileMamZgodLicencja,wiadomosc2[0],wiadomosc2[1],wiadomosc2[2],wiadomosc2[3]);
         
@@ -80,13 +86,13 @@ void * funkcjaWatku() {
         else if(wiadomosc2[3]==2) {
             pthread_mutex_lock(&mutexZgodyZ);
             ileMamZgodZajace += 1;
-            pthread_mutex_lock(&mutexZgodyZ);
-            printf("DOSTAL ZGODE: %d ma teraz %d zgod\n",rank,ileMamZgodZajace);
+            pthread_mutex_unlock(&mutexZgodyZ);
+            printf("DOSTAL ZGODE: %d ma teraz %d zgod ZAJACE\n",rank,ileMamZgodZajace);
         }
         else if(wiadomosc2[3]==3) {
             pthread_mutex_lock(&mutexZgodyT);
             ileMamZgodTranport += 1;
-            pthread_mutex_lock(&mutexZgodyT);
+            pthread_mutex_unlock(&mutexZgodyT);
         }
         else {
             int doKogo = -1;
@@ -100,7 +106,7 @@ void * funkcjaWatku() {
                     wiadomosc2[1] = zegar;
                     wiadomosc2[2] = 0;
                     wiadomosc2[3] = 1;
-                    MPI_Send(wiadomosc2,rozmiarWiadomosci, MPI_INT, doKogo, status.MPI_SOURCE, MPI_COMM_WORLD);
+                    MPI_Send(wiadomosc2,rozmiarWiadomosci, MPI_INT, doKogo, TAGzwykly, MPI_COMM_WORLD);
                     //printf("WATEK ===> Proces: %d wysyla do: %d wiadomosc z zegarem: %d i czyJestZgoda: %d\n",rank,doKogo,zegar,wiadomosc2[3]);
                     
                 }
@@ -113,7 +119,7 @@ void * funkcjaWatku() {
                         wiadomosc2[1] = zegar;
                         wiadomosc2[2] = 0;
                         wiadomosc2[3] = 1;
-                        MPI_Send(wiadomosc2,rozmiarWiadomosci, MPI_INT, doKogo, status.MPI_SOURCE, MPI_COMM_WORLD);
+                        MPI_Send(wiadomosc2,rozmiarWiadomosci, MPI_INT, doKogo, TAGzwykly, MPI_COMM_WORLD);
                     }
                     else if(zegar == wiadomosc2[1]) {
                         if(rank > wiadomosc2[0]) {
@@ -124,7 +130,7 @@ void * funkcjaWatku() {
                             wiadomosc2[1] = zegar;
                             wiadomosc2[2] = 0;
                             wiadomosc2[3] = 1;
-                            MPI_Send(wiadomosc2,rozmiarWiadomosci, MPI_INT, doKogo, status.MPI_SOURCE, MPI_COMM_WORLD);
+                            MPI_Send(wiadomosc2,rozmiarWiadomosci, MPI_INT, doKogo, TAGzwykly, MPI_COMM_WORLD);
                         }
                     }
                     else {
@@ -139,7 +145,7 @@ void * funkcjaWatku() {
             else if(wiadomosc2[2]==2) { //byla prosba o zajaca
                 //printf("WATEK ---> Proces %d pyta mnie %d o licencje, CzyJaChcialemLicencje: %d\n",wiadomosc2[0],rank,procesChceLicencje);
                 
-                if(ktoJestWParku[rank]==1) {
+                //if(ktoJestWParku[rank]==1) {
                     if(wiadomosc2[5]!=0) //pozostaly jakies zajace
                     {
                         pthread_mutex_lock(&mutexIleZajecyZostalo);
@@ -155,7 +161,7 @@ void * funkcjaWatku() {
                         wiadomosc2[1] = zegar;
                         wiadomosc2[2] = 0;
                         wiadomosc2[3] = 2;
-                        MPI_Send(wiadomosc2,rozmiarWiadomosci, MPI_INT, doKogo, status.MPI_SOURCE, MPI_COMM_WORLD);
+                        MPI_Send(wiadomosc2,rozmiarWiadomosci, MPI_INT, doKogo, TAGzwykly, MPI_COMM_WORLD);
                     }
                     else if(zegar == wiadomosc2[1]) {
                         if(rank > wiadomosc2[0]) {
@@ -166,14 +172,14 @@ void * funkcjaWatku() {
                             wiadomosc2[1] = zegar;
                             wiadomosc2[2] = 0;
                             wiadomosc2[3] = 2;
-                            MPI_Send(wiadomosc2,rozmiarWiadomosci, MPI_INT, doKogo, status.MPI_SOURCE, MPI_COMM_WORLD);
+                            MPI_Send(wiadomosc2,rozmiarWiadomosci, MPI_INT, doKogo, TAGzwykly, MPI_COMM_WORLD);
                         }
                     }
                     else {
                         //wiadomosc2[3] = 0;
                         //    iadomosc,rozmiarWiadomosci, MPI_INT, wiadomosc2[0], status.MPI_SOURCE, MPI_COMM_WORLD);
                     }
-                }
+                //}
             }
         }
         
@@ -194,9 +200,9 @@ void wejscieDoParkuCzyliKolejkaPoLicencje()
     for(int i=0; i<size; i++) {
         if(i==rank) continue;
         pthread_mutex_lock(&mutex);
-        MPI_Send(wiadomosc,rozmiarWiadomosci, MPI_INT, i, status.MPI_SOURCE, MPI_COMM_WORLD);
+        MPI_Send(wiadomosc,rozmiarWiadomosci, MPI_INT, i, TAGzwykly, MPI_COMM_WORLD);
         pthread_mutex_unlock(&mutex);
-        printf("Wysylam: (ja: %d) do %d, zegar=%d\n", wiadomosc[0],i,wiadomosc[1]);
+        printf("<Kolejka Licencje> Wysylam: (ja: %d) do %d, zegar=%d\n", wiadomosc[0],i,wiadomosc[1]);
     }
     
 }
@@ -213,16 +219,95 @@ void zabijanieZajecyCzyliKolejkaPoZajaca()
     
     for(int i=0; i<size; i++) {
         if(i==rank) continue;
-        pthread_mutex_lock(&mutex);
-        MPI_Send(wiadomosc,rozmiarWiadomosci, MPI_INT, i, status.MPI_SOURCE, MPI_COMM_WORLD);
-        pthread_mutex_unlock(&mutex);
-        printf("Wysylam: (ja: %d) do %d, zegar=%d\n", wiadomosc[0],i,wiadomosc[1]);
+        if(ktoJestWParku[i] == 1) {
+            pthread_mutex_lock(&mutex);
+            MPI_Send(wiadomosc,rozmiarWiadomosci, MPI_INT, i, TAGzwykly, MPI_COMM_WORLD);
+            pthread_mutex_unlock(&mutex);
+            printf("<Kolejka Zajace> Wysylam: (ja: %d) do %d, zegar=%d\n", wiadomosc[0],i,wiadomosc[1]);
+        }
     }
     
 }
 
+
+void *odbierzInfoKtoJestWParku() {
+    int ktoJestWParku2[Mysliwi] = {0};
+    //int y=0;
+    while(1) {
+        //pthread_mutex_lock(&mutex);
+        MPI_Recv(&ktoJestWParku2, sizeof(ktoJestWParku2), MPI_INT, MPI_ANY_SOURCE, TAGzajac, MPI_COMM_WORLD, &status);
+        //MPI_Recv(&y, sizeof(y), MPI_INT, MPI_ANY_SOURCE, TAGzajac, MPI_COMM_WORLD, &status);
+        //printf("%d) odebralem %d %d %d %d\n",rank,ktoJestWParku2[0],ktoJestWParku2[1],ktoJestWParku2[2],ktoJestWParku2[3]);
+        //printf("Odebralem (ja: %d) wiadomosc w watku Parku\n",rank);
+        //printf("%d) mialem wczesniej %d %d %d %d\n",rank,ktoJestWParku[0],ktoJestWParku[1],ktoJestWParku[2],ktoJestWParku[3]);
+        
+        //pthread_mutex_unlock(&mutex);
+        pthread_mutex_lock(&mutexKtoJestWParku);
+        for(int i=0; i<Mysliwi; i++) {
+            ktoJestWParku[i] = max(ktoJestWParku[i],ktoJestWParku2[i]);
+        }
+        pthread_mutex_unlock(&mutexKtoJestWParku);
+        //printf("%d) po sumowaniu %d %d %d %d\n",rank,ktoJestWParku[0],ktoJestWParku[1],ktoJestWParku[2],ktoJestWParku[3]);
+
+        
+    }
+    return NULL;
+}
+
+void wyslijInfoZeZabilesZajaca() {
+    int x=1;
+    for(int i=0; i<size; i++) {
+        if(i==rank) continue;
+        pthread_mutex_lock(&mutex);
+        MPI_Send(&x,sizeof(x), MPI_INT, i, TAGzabity, MPI_COMM_WORLD);
+        //int x=1;
+        //MPI_Send(&x,1, MPI_INT, i, TAGzajac, MPI_COMM_WORLD);
+        pthread_mutex_unlock(&mutex);
+        //printf("Wysylam: (ja: %d) do %d, zegar=%d\n", wiadomosc[0],i,wiadomosc[1]);
+    }
+}
+
+void *odbierzInfoZeZabitoZajaca() {
+    int x;
+    while(1) {
+        //pthread_mutex_lock(&mutex);
+        MPI_Recv(&x, sizeof(x), MPI_INT, MPI_ANY_SOURCE, TAGzabity, MPI_COMM_WORLD, &status);
+        //MPI_Recv(&y, sizeof(y), MPI_INT, MPI_ANY_SOURCE, TAGzajac, MPI_COMM_WORLD, &status);
+        //printf("%d) odebralem %d %d %d %d\n",rank,ktoJestWParku2[0],ktoJestWParku2[1],ktoJestWParku2[2],ktoJestWParku2[3]);
+        //printf("Odebralem (ja: %d) wiadomosc w watku Parku\n",rank);
+        //printf("%d) mialem wczesniej %d %d %d %d\n",rank,ktoJestWParku[0],ktoJestWParku[1],ktoJestWParku[2],ktoJestWParku[3]);
+        
+        //pthread_mutex_unlock(&mutex);
+        pthread_mutex_lock(&mutexKtoJestWParku);
+        ileZajecyPozostalo -= x;
+        pthread_mutex_unlock(&mutexKtoJestWParku);
+        //printf("%d) po sumowaniu %d %d %d %d\n",rank,ktoJestWParku[0],ktoJestWParku[1],ktoJestWParku[2],ktoJestWParku[3]);
+        
+        
+    }
+    return NULL;
+}
+
+
 void wyslijInfoKtoJestWParku() {
-    //ktoJestWParku
+    for(int i=0; i<size; i++) {
+        if(i==rank) continue;
+        pthread_mutex_lock(&mutex);
+        MPI_Send(ktoJestWParku,sizeof(ktoJestWParku), MPI_INT, i, TAGzajac, MPI_COMM_WORLD);
+        //int x=1;
+        //MPI_Send(&x,1, MPI_INT, i, TAGzajac, MPI_COMM_WORLD);
+        pthread_mutex_unlock(&mutex);
+        //printf("Wysylam: (ja: %d) do %d, zegar=%d\n", wiadomosc[0],i,wiadomosc[1]);
+    }
+}
+
+
+int sumujTabliceKtoJestWParku() {
+    int s = 0;
+    for(int i=0; i<Mysliwi; i++) {
+        s += ktoJestWParku[i];
+    }
+    return s;
 }
 
 void wyslijZgodeWszystkim(int oCoZgoda) {
@@ -239,7 +324,7 @@ void wyslijZgodeWszystkim(int oCoZgoda) {
     for(int i=0; i<size; i++) {
         if(i==rank) continue;
         pthread_mutex_lock(&mutex);
-        MPI_Send(wiadomosc,rozmiarWiadomosci, MPI_INT, i, status.MPI_SOURCE, MPI_COMM_WORLD);
+        MPI_Send(wiadomosc,rozmiarWiadomosci, MPI_INT, i, TAGzwykly, MPI_COMM_WORLD);
         pthread_mutex_unlock(&mutex);
         //printf("Wysylam: (ja: %d) do %d, zegar=%d\n", wiadomosc[0],i,wiadomosc[1]);
     }
@@ -259,14 +344,15 @@ int main(int argc, char **argv) {
     init();
     
     //stworz watki
-    pthread_t watek1;
+    pthread_t watek1, watek2, watek3;
     int errno = pthread_create(&watek1, NULL, funkcjaWatku, (void*)&procesChceLicencje); //zwraca 0 gdy sukces
-    
+    int errno2 = pthread_create(&watek2, NULL, odbierzInfoKtoJestWParku, NULL); //zwraca 0 gdy sukces
+    int errno3 = pthread_create(&watek3, NULL, odbierzInfoZeZabitoZajaca, NULL);
     /*
      chce licencje:
      */
     pthread_mutex_lock(&mutexZgodyL);
-    procesChceLicencje = (rand() % 101 + 1) > 50;
+    procesChceLicencje = (rand() % 101 + 1) > 25;//50;
     pthread_mutex_unlock(&mutexZgodyL);
     
     if (procesChceLicencje) { //50% szans ze chce licencje, jezeli chce to:
@@ -287,16 +373,48 @@ int main(int argc, char **argv) {
         
         printf("-----------------------Proces:%d jest w parku---------------------\n",rank);
         
+        pthread_mutex_lock(&mutexKtoJestWParku);
         ktoJestWParku[rank] = 1;
+        pthread_mutex_unlock(&mutexKtoJestWParku);
+        wyslijInfoKtoJestWParku();
+        
+        while(sumujTabliceKtoJestWParku() < Licencje) {
+            sleep(1);
+        }
+        int ileOsobJestWParku = sumujTabliceKtoJestWParku();
+        printf("Proces: %d TWIERDZI ze Wszyscy sa w PARKU (suma=%d)\n",rank, ileOsobJestWParku);
         
         int liczbaZajecyDoZabicia = rand() % Zajace + 1;
         sleep(1); //symulacja polowania
-        zabijanieZajecyCzyliKolejkaPoZajaca();
         
-        printf("JA:%d chce ZABIC %d zajecy. Czekam na odpowiednia ilosc zgod zajace\n",rank,liczbaZajecyDoZabicia);
-        while(ileMamZgodZajace < Licencje - 1) {
-            //oczekuj na odpowiednia ilosc zgod
+        //while()...
+        if(Zajace >= ileZajecyPozostalo) {
+            pthread_mutex_lock(&mutexIleZajecyZostalo);
+            ileZajecyPozostalo -= ileOsobJestWParku;
+            pthread_mutex_unlock(&mutexIleZajecyZostalo);
         }
+        else { //zajecy jest mniej niz osob w parku
+            zabijanieZajecyCzyliKolejkaPoZajaca();
+            while(ileMamZgodZajace < (ileOsobJestWParku - Zajace + 1) - 1) {
+                //oczekuj na odpowiednia ilosc zgod
+            }
+            pthread_mutex_lock(&mutexIleZajecyZostalo);
+            ileZajecyPozostalo -= 1;
+            pthread_mutex_unlock(&mutexIleZajecyZostalo);
+            wyslijInfoZeZabilesZajaca();
+        }
+        
+        
+        
+        
+        printf("    --    PROCES %d ma %d zgod na zajace i moze je zabic\n",rank, ileMamZgodZajace);
+        while(1) {
+            
+        }
+       // printf("JA:%d chce ZABIC %d zajecy. Czekam na odpowiednia ilosc zgod zajace\n",rank,liczbaZajecyDoZabicia);
+       // while(ileMamZgodZajace < Licencje - 1) {
+            //oczekuj na odpowiednia ilosc zgod
+        //}
         aktualizujStaryZegar();
         
         pthread_mutex_lock(&mutexIleZajecyZostalo);
@@ -320,7 +438,7 @@ int main(int argc, char **argv) {
          }*/
     }
     else {
-        ktoJestWParku[rank] = -1;
+        ktoJestWParku[rank] = 0;
         printf("Ja: %d Nie chcialem licencji wiec ide sleep\n", rank);
         while(!end) {
             
@@ -329,13 +447,14 @@ int main(int argc, char **argv) {
     
     
     printf("wyswietlam w mainie\n");
-    if(errno) {
+    if(errno || errno2 || errno3) {
         printf("Nie udalo sie utworzyc watku!!\n");
     }
     
     //polacz z powrotem watki
     errno = pthread_join(watek1, NULL); //zwraca 0 gdy sukces
-    if(errno) {
+    errno2 = pthread_join(watek2, NULL);
+    if(errno || errno2 || errno3) {
         printf("Nie udalo sie polaczyc watkow!!\n");
     }
     
